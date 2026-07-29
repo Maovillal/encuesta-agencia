@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Agencia · Tu opinión</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.24.0/dist/tabler-icons.min.css" />
+<style>
+@font-face{font-family:"HeinekenCore";font-style:normal;font-weight:300 800;font-display:swap;src:url("./heineken-core.woff2") format("woff2")}
+:root{--verde:#205527;--gris:#F3F3F3;--fg:#111;--shadow:0 4px 16px rgba(0,0,0,.08);--font:"HeinekenCore",system-ui,-apple-system,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--font);font-weight:300;color:var(--fg);background:var(--gris);-webkit-font-smoothing:antialiased}
+.enc{min-height:100%;display:flex;justify-content:center;align-items:flex-start;padding:40px 16px}
+.enc button{font-family:var(--font);cursor:pointer;border:1px solid rgba(0,0,0,.14);background:#fff;color:var(--fg);transition:background .15s,border-color .15s,color .15s}
+.enc button:disabled{opacity:.5;cursor:default}
+.enc textarea,.enc input{font-family:var(--font);border:1px solid rgba(0,0,0,.16);border-radius:10px;padding:11px 12px;box-sizing:border-box;color:var(--fg);background:#fff;font-size:14px}
+.enc textarea:focus,.enc input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(32,85,39,.12)}
+.enc textarea::placeholder,.enc input::placeholder{color:rgba(0,0,0,.4)}
+</style>
+</head>
+<body>
+<div class="enc">
+  <div id="card" style="width:360px;max-width:100%;background:#fff;border-radius:24px;box-shadow:var(--shadow);overflow:hidden">
+    <div style="background:var(--verde);padding:18px 20px 20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <span style="font-size:13px;font-weight:700;color:#fff;letter-spacing:.02em">Agencia · Tu opinión</span>
+        <span style="font-size:12px;color:rgba(255,255,255,.8)"><i class="ti ti-clock" aria-hidden="true" style="font-size:14px;vertical-align:-2px"></i> 2 min</span>
+      </div>
+      <div style="height:5px;background:rgba(255,255,255,.25);border-radius:3px">
+        <div id="prog" style="height:5px;width:14%;background:#fff;border-radius:3px;transition:width .3s"></div>
+      </div>
+      <p id="stepLabel" style="margin:12px 0 0;font-size:12px;font-weight:700;color:#fff;letter-spacing:.02em">Paso 1 de 7 · Tu negocio</p>
+    </div>
+    <div id="form" style="padding:20px"></div>
+    <div id="nav" style="display:flex;gap:10px;padding:0 20px 22px"></div>
+    <p style="font-size:12px;color:rgba(0,0,0,.45);text-align:center;margin:0;padding:0 20px 20px">Tus respuestas nos ayudan a atenderte mejor</p>
+  </div>
+</div>
+<script>
+// ====== CONFIG ==============================================================
+// endpoint: URL /exec del Apps Script de la encuesta v2. NO es el de la v1.
+// ENVASE:   la pregunta del envase retornable esta apagada porque falta
+//           confirmar si aplica con estos clientes. La columna q7_envase ya
+//           existe en la hoja, asi que prenderla aqui es lo unico que hace
+//           falta — no hay que reordenar nada.
+var CONFIG = { endpoint: 'https://script.google.com/macros/s/AKfycbyyAGn1Lz4fdzg5q2u47u0ZOtNbOd8hcmnLvvJOFWDKgnVlid_XH2ZD2MqAWCw08OcLWg/exec', ENVASE: false };
+// ============================================================================
+(function(){
+  var GREEN='var(--verde)', TINT='rgba(32,85,39,.09)';
+  var F=document.getElementById('form'), A={};
+  var moodIcons=['ti-mood-sad','ti-mood-empty','ti-mood-neutral','ti-mood-smile','ti-mood-happy'];
+  var params=new URLSearchParams(location.search);
+  var asesor=(params.get('asesor')||params.get('a')||'').trim();
+  if(!asesor){
+    document.getElementById('card').innerHTML='<div style="padding:56px 28px;text-align:center"><div style="width:72px;height:72px;border-radius:999px;background:'+TINT+';display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i class="ti ti-qrcode" style="font-size:38px;color:'+GREEN+'"></i></div><p style="font-weight:800;font-size:20px;letter-spacing:.02em;margin:0 0 8px;color:var(--fg)">Escanea tu código QR</p><p style="font-weight:300;font-size:15px;color:rgba(0,0,0,.6);margin:0;line-height:1.5">Para responder esta encuesta, escanea el código QR que te compartió tu asesor.</p></div>';
+    return;
+  }
+
+  // Numeracion automatica. Si se prende la pregunta del envase, todo lo que
+  // sigue se renumera solo — no hay numeros escritos a mano en el texto.
+  var n=0; function N(){ n++; return n+'. '; }
+
+  function label(parent,t,opt){var p=document.createElement('p');p.style.cssText='font-size:14.5px;font-weight:700;margin:0 0 9px;line-height:1.35;letter-spacing:.01em';p.innerHTML=t+(opt?' <span style="font-size:12px;color:rgba(0,0,0,.45);font-weight:400">'+opt+'</span>':'');parent.appendChild(p);return p;}
+  function selectBtn(b){b.style.background=TINT;b.style.borderColor=GREEN;b.style.color=GREEN;b.style.fontWeight='700';}
+  function moods(id,parent,t){label(parent,t);var g=document.createElement('div');g.style.cssText='display:flex;gap:6px;margin-bottom:22px';var base='flex:1;padding:10px 0;font-size:24px;border-radius:12px;line-height:1';moodIcons.forEach(function(ic,i){var b=document.createElement('button');b.style.cssText=base;b.innerHTML='<i class="ti '+ic+'" aria-hidden="true"></i>';b.onclick=function(){[].forEach.call(g.children,function(x){x.style.cssText=base;});selectBtn(b);A[id]=i+1;};g.appendChild(b);});parent.appendChild(g);}
+  function nps(id,parent,t){label(parent,t);var g=document.createElement('div');g.style.cssText='display:grid;grid-template-columns:repeat(11,1fr);gap:4px;margin-bottom:6px';var base='padding:9px 0;font-size:12px;border-radius:7px';for(var i=0;i<=10;i++){(function(i){var b=document.createElement('button');b.textContent=i;b.style.cssText=base;b.onclick=function(){[].forEach.call(g.children,function(x){x.style.cssText=base;});selectBtn(b);A[id]=i;};g.appendChild(b);})(i);}parent.appendChild(g);var l=document.createElement('div');l.style.cssText='display:flex;justify-content:space-between;margin:0 0 22px';l.innerHTML='<span style="font-size:11px;color:rgba(0,0,0,.45)">Nada probable</span><span style="font-size:11px;color:rgba(0,0,0,.45)">Muy probable</span>';parent.appendChild(l);}
+  function scale(id,parent,t,lo,hi){label(parent,t);var g=document.createElement('div');g.style.cssText='display:flex;gap:6px';var base='flex:1;padding:11px 0;font-size:14px;border-radius:10px';for(var i=1;i<=5;i++){(function(i){var b=document.createElement('button');b.textContent=i;b.style.cssText=base;b.onclick=function(){[].forEach.call(g.children,function(x){x.style.cssText=base;});selectBtn(b);A[id]=i;};g.appendChild(b);})(i);}parent.appendChild(g);var l=document.createElement('div');l.style.cssText='display:flex;justify-content:space-between;margin:4px 0 22px';l.innerHTML='<span style="font-size:11px;color:rgba(0,0,0,.45)">'+lo+'</span><span style="font-size:11px;color:rgba(0,0,0,.45)">'+hi+'</span>';parent.appendChild(l);}
+  // Contador 0-4. Es el control de las preguntas conductuales ("de tus ultimas
+  // 4 entregas, cuantas..."), que son las que si discriminan: una escala de
+  // satisfaccion se satura en el 5, un conteo no.
+  function count4(id,parent,t,lo,hi){label(parent,t);var g=document.createElement('div');g.style.cssText='display:flex;gap:6px';var base='flex:1;padding:11px 0;font-size:14px;border-radius:10px';for(var i=0;i<=4;i++){(function(i){var b=document.createElement('button');b.textContent=i;b.style.cssText=base;b.onclick=function(){[].forEach.call(g.children,function(x){x.style.cssText=base;});selectBtn(b);A[id]=i;};g.appendChild(b);})(i);}parent.appendChild(g);var l=document.createElement('div');l.style.cssText='display:flex;justify-content:space-between;margin:4px 0 22px';l.innerHTML='<span style="font-size:11px;color:rgba(0,0,0,.45)">'+lo+'</span><span style="font-size:11px;color:rgba(0,0,0,.45)">'+hi+'</span>';parent.appendChild(l);}
+  function paint(b){var on=b.dataset.on==='1';b.style.background=on?TINT:'#fff';b.style.borderColor=on?GREEN:'rgba(0,0,0,.14)';b.style.color=on?GREEN:'var(--fg)';b.style.fontWeight=on?'700':'400';}
+  function capChips(id,g,max){var sel=[].filter.call(g.children,function(x){return x.dataset.on==='1';}).map(function(x){return x.textContent;});A[id]=max===1?(sel[0]||''):sel;}
+  function chips(id,parent,t,arr,max,opt,onPick){label(parent,t,opt);var g=document.createElement('div');g.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px';arr.forEach(function(c,i){var b=document.createElement('button');b.textContent=c;b.dataset.on='0';b.style.cssText='font-size:13px;padding:9px 14px;border-radius:999px';b.onclick=function(){if(max===1)[].forEach.call(g.children,function(x){x.dataset.on='0';paint(x);});var sel=[].filter.call(g.children,function(x){return x.dataset.on==='1';});if(b.dataset.on!=='1'&&sel.length>=max)return;b.dataset.on=b.dataset.on==='1'?'0':'1';paint(b);capChips(id,g,max);if(onPick)onPick(i,b.dataset.on==='1');};g.appendChild(b);});parent.appendChild(g);return g;}
+  function followUp(parent){var d=document.createElement('div');d.style.cssText='display:none;border-left:2px solid '+GREEN+';padding-left:12px;margin:-8px 0 22px';parent.appendChild(d);return d;}
+  function subLabel(parent,t,opt){var p=document.createElement('p');p.style.cssText='font-size:14px;font-weight:700;margin:0 0 8px;line-height:1.35';p.innerHTML=t+(opt?' <span style="font-size:12px;color:rgba(0,0,0,.45);font-weight:400">'+opt+'</span>':'');parent.appendChild(p);}
+  function textarea(id,parent,ph,rows){var x=document.createElement('textarea');x.rows=rows||2;x.placeholder=ph;x.style.cssText='width:100%;font-size:14px;margin:0';x.oninput=function(){A[id]=x.value;};parent.appendChild(x);return x;}
+
+  var steps=[], meta=['Tu negocio','Tu última entrega','Al recibir','Tu asesor','Cuando hay un problema','Socio Tecate','Para terminar'];
+  function mk(){var sc=document.createElement('div');steps.push(sc);F.appendChild(sc);return sc;}
+
+  // ---- Paso 1 · Tu negocio -------------------------------------------------
+  var s=mk();
+  var negocioInput, negocioErr;
+  (function(){var w=document.createElement('div');w.style.cssText='margin-bottom:22px';label(w,'¿Cuál es el nombre de tu negocio?');negocioInput=document.createElement('input');negocioInput.type='text';negocioInput.placeholder='Ej. Abarrotes La Esquina';negocioInput.maxLength=80;negocioInput.autocapitalize='words';negocioInput.style.cssText='width:100%;font-size:14px;margin:0';negocioInput.oninput=function(){A['negocio']=negocioInput.value;if(negocioInput.value.trim()){negocioErr.style.display='none';negocioInput.style.borderColor='rgba(0,0,0,.16)';}};w.appendChild(negocioInput);negocioErr=document.createElement('p');negocioErr.style.cssText='display:none;font-size:12px;color:#c0392b;margin:6px 0 0;font-weight:700';negocioErr.textContent='Por favor escribe el nombre de tu negocio para continuar.';w.appendChild(negocioErr);s.appendChild(w);})();
+  nps('q1_nps',s,N()+'Del 0 al 10, ¿qué tanto nos recomendarías con otro negocio como el tuyo?');
+
+  // ---- Paso 2 · Tu última entrega -----------------------------------------
+  // q2 no es una pregunta de opinion: es la llave para cruzar cada respuesta
+  // con la salida del camion de ese dia. El timestamp dice cuando CONTESTO, no
+  // cuando le ENTREGARON — sin esta pregunta el bloque de reparto no se puede
+  // amarrar a una unidad ni a un operador.
+  s=mk();
+  chips('q2_ultima_entrega',s,N()+'¿Cuándo fue la última vez que te entregamos?',['Hoy','Ayer','Esta semana','La semana pasada','No recuerdo'],1);
+  count4('q3_entregas_completas',s,N()+'De tus últimas 4 entregas, ¿cuántas llegaron completas y a tiempo?','Ninguna','Las 4');
+  moods('q4_reparto_trato',s,N()+'¿Cómo es el trato del equipo de reparto cuando te entrega?');
+  chips('q5_tiempo_revisar',s,N()+'¿El repartidor te da tiempo de contar y revisar tu pedido antes de firmar?',['Nunca','A veces','Siempre'],1);
+  chips('q6_donde_deja',s,N()+'¿Dónde te deja el producto?',['Donde yo le digo','Hasta la puerta','En la banqueta o afuera'],1);
+  if(CONFIG.ENVASE){
+    chips('q7_envase',s,N()+'¿Te reciben el envase vacío sin problema?',['Siempre','A veces','Casi nunca','No manejo envase'],1);
+  }
+
+  // ---- Paso 3 · Al recibir -------------------------------------------------
+  s=mk();
+  chips('q8_faltantes',s,N()+'Cuando falta algo en tu pedido, ¿qué pasa normalmente?',['Me avisan antes de bajarlo','Me entero al contar','Me doy cuenta hasta después','Nunca me ha faltado nada'],1);
+  chips('q9_recontar',s,N()+'¿Sientes necesidad de recontar caja por caja al recibir?',['Nunca','A veces','Siempre'],1);
+  scale('q10_confianza_pedido',s,N()+'Cuando haces tu pedido, ¿qué tanto confías en que llegará tal como lo pediste (cantidades y precios correctos)?','Nada','Totalmente');
+
+  // ---- Paso 4 · Tu asesor --------------------------------------------------
+  // La primera es una prueba de presencia, no una opinion: el QR ya sabe quien
+  // es el asesor, asi que el nombre que escriba el cliente se puede comparar
+  // contra el padron y saber si de verdad lo ubica. Contestar "No" con el
+  // asesor enfrente es una señal fuerte; el sesgo del acompañamiento juega en
+  // contra de este dato, no a favor.
+  s=mk();
+  var q12=followUp(s);
+  chips('q11_conoce_asesor',s,N()+'¿Sabes cómo se llama tu asesor de ventas?',['Sí','No'],1,null,function(i,on){
+    q12.style.display=(i===0&&on)?'block':'none';
+    if(!(i===0&&on))A['q12_nombre_asesor']='';
+  });
+  subLabel(q12,'¿Cómo se llama?');
+  (function(){var t=document.createElement('input');t.type='text';t.placeholder='Su nombre';t.maxLength=60;t.autocapitalize='words';t.style.cssText='width:100%;font-size:14px';t.oninput=function(){A['q12_nombre_asesor']=t.value;};q12.appendChild(t);})();
+  s.appendChild(q12);
+  count4('q13_asesor_visitas',s,N()+'De tus últimas 4 visitas, ¿en cuántas llegó tu asesor cuando lo esperabas?','Ninguna','Las 4');
+
+  // ---- Paso 5 · Cuando hay un problema ------------------------------------
+  // "No sé con quién" y "lo dejo pasar" son los hallazgos que importan: son
+  // problemas que nunca llegan a reportarse y por eso no existen en ningun
+  // sistema. La segunda pregunta separa un canal real de uno teorico — decir
+  // "le hablo a la agencia" sin tener el numero no es un canal.
+  s=mk();
+  var q15=followUp(s);
+  chips('q14_acude_a',s,N()+'Cuando tienes un problema o una duda, ¿con quién te comunicas?',['Con mi asesor','Con el repartidor','Le hablo a la agencia','Con el supervisor','No sé con quién','Nadie, lo dejo pasar'],1,null,function(i,on){
+    q15.style.display=(i<4&&on)?'block':'none';
+    if(!(i<4&&on))A['q15_tiene_contacto']='';
+  });
+  subLabel(q15,'¿Tienes su teléfono o su forma de contacto?');
+  (function(){var g=document.createElement('div');g.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:0';['Sí','No'].forEach(function(c){var b=document.createElement('button');b.textContent=c;b.dataset.on='0';b.style.cssText='font-size:13px;padding:9px 14px;border-radius:999px';b.onclick=function(){[].forEach.call(g.children,function(x){x.dataset.on='0';paint(x);});b.dataset.on='1';paint(b);A['q15_tiene_contacto']=c;};g.appendChild(b);});q15.appendChild(g);})();
+  s.appendChild(q15);
+  var q16=followUp(s);
+  chips('q16_problema',s,N()+'¿Tienes actualmente algún problema pendiente con nosotros?',['No','Sí'],1,null,function(i,on){q16.style.display=(i===1&&on)?'block':'none';toqueTelefono();});
+  subLabel(q16,'Cuéntanos cuál es el problema.');textarea('q16_detalle',q16,'Descríbelo con tus palabras');s.appendChild(q16);
+  var q17=followUp(s);
+  chips('q17_resolucion',s,N()+'Cuando has reportado un problema, ¿cuánto tardamos en resolverlo?',['El mismo día','2-3 días','Una semana','Más de una semana','Sigue sin resolverse','No he reportado problemas'],1,null,function(i,on){q17.style.display=(i<5&&on)?'block':'none';});
+  subLabel(q17,'¿Cómo te sentiste con la forma en que lo resolvimos?','(opcional)');textarea('q17_sentir',q17,'Cuéntanos');s.appendChild(q17);
+
+  // ---- Paso 5 · Socio Tecate ----------------------------------------------
+  // El bloque viejo preguntaba "¿que tan bien le entiendes?" con caritas: una
+  // autoevaluacion que se satura y no dice donde se traba. Un programa de
+  // puntos es un embudo, y cada escalon que se cae pide una accion distinta,
+  // asi que aqui se mide el escalon — no la sensacion.
+  s=mk();
+  var stConoce=followUp(s);
+  chips('st1_uso',s,N()+'¿Cómo vas con Socio Tecate?',['No lo conozco','Lo conozco pero no me he registrado','Estoy registrado pero no lo uso','Lo uso de vez en cuando','Lo uso siempre'],1,null,function(i,on){stConoce.style.display=(i>0&&on)?'block':'none';});
+  subLabel(stConoce,'¿Sabes más o menos cuántos puntos tienes ahorita?');
+  (function(){var g=document.createElement('div');g.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:0 0 16px';['Sí','No tengo idea'].forEach(function(c){var b=document.createElement('button');b.textContent=c;b.dataset.on='0';b.style.cssText='font-size:13px;padding:9px 14px;border-radius:999px';b.onclick=function(){[].forEach.call(g.children,function(x){x.dataset.on='0';paint(x);});b.dataset.on='1';paint(b);A['st2_saldo']=c;};g.appendChild(b);});stConoce.appendChild(g);})();
+  subLabel(stConoce,'¿Has canjeado algún premio con tus puntos?');
+  (function(){var g=document.createElement('div');g.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:0';['Sí, ya canjeé','No, no he juntado suficientes','No, no sé cómo','No sabía que se podía'].forEach(function(c){var b=document.createElement('button');b.textContent=c;b.dataset.on='0';b.style.cssText='font-size:13px;padding:9px 14px;border-radius:999px';b.onclick=function(){[].forEach.call(g.children,function(x){x.dataset.on='0';paint(x);});b.dataset.on='1';paint(b);A['st3_canje']=c;};g.appendChild(b);});stConoce.appendChild(g);})();
+  s.appendChild(stConoce);
+  // st4 va para TODOS, tambien para quien contesto "No lo conozco": ese cruce
+  // —no lo conoce y nadie le explico— es justo la falla que se quiere ubicar
+  // por asesor.
+  chips('st4_asesor_explico',s,N()+'¿Tu asesor se dio el tiempo de explicarte cómo funciona Socio Tecate?',['Sí, me explicó bien','Me lo mencionó rápido','No, nunca me ha explicado'],1);
+
+  // ---- Paso 7 · Para terminar ---------------------------------------------
+  s=mk();
+  label(s,N()+'¿Algo más que quieras platicarnos?','(opcional)');textarea('q18_comentario',s,'Escribe aquí solo si quieres',3).style.marginBottom='22px';
+
+  // El telefono se pide a TODOS, pero el motivo cambia. En la v1 se pedia al
+  // final, opcional y sin razon: lo dejaron 6 de 20 y ninguno era de los que
+  // habia que llamar. Aqui todos lo ven, y a quien tiene algo abierto —
+  // detractor o problema pendiente — se le pide con la razon concreta, que es
+  // lo que hace que lo deje.
+  var telTitulo, telNota, telCaja=document.createElement('div');
+  (function(){
+    telTitulo=document.createElement('p');telTitulo.style.cssText='font-size:14.5px;font-weight:700;margin:0 0 9px;line-height:1.35';
+    telCaja.appendChild(telTitulo);
+    telNota=document.createElement('p');telNota.style.cssText='font-size:12.5px;color:rgba(0,0,0,.55);margin:0 0 10px;line-height:1.45';
+    telCaja.appendChild(telNota);
+    var t=document.createElement('input');t.type='tel';t.inputMode='tel';t.placeholder='10 dígitos';t.maxLength=20;
+    t.style.cssText='width:100%;font-size:14px';t.oninput=function(){A['q19_telefono']=t.value;};
+    telCaja.appendChild(t);
+  })();
+  s.appendChild(telCaja);
+  function toqueTelefono(){
+    var nps=A['q1_nps'], problema=A['q16_problema'];
+    var urgente=(typeof nps==='number'&&nps<=6)||problema==='Sí';
+    if(urgente){
+      telTitulo.textContent='¿Quieres que te llamemos para resolver esto?';
+      telNota.textContent='Déjanos tu teléfono o WhatsApp y un responsable te busca.';
+    }else{
+      telTitulo.innerHTML='¿A qué número te podemos contactar? <span style="font-size:12px;color:rgba(0,0,0,.45);font-weight:400">(opcional)</span>';
+      telNota.textContent='Solo para avisarte de promociones y para buscarte si algo sale mal con tu pedido.';
+    }
+  }
+
+  var total=steps.length, cur=0;
+  var nav=document.getElementById('nav');
+  var back=document.createElement('button');back.textContent='Atrás';back.style.cssText='padding:13px 18px;font-size:14px;font-weight:700;border-radius:12px;border:1px solid '+GREEN+';background:#fff;color:'+GREEN;
+  var next=document.createElement('button');next.style.cssText='flex:1;padding:13px 0;font-size:15px;font-weight:700;border-radius:12px;border:none;background:'+GREEN+';color:#fff';
+  nav.appendChild(back);nav.appendChild(next);
+
+  function render(){
+    if(cur===total-1)toqueTelefono();
+    steps.forEach(function(el,i){el.style.display=i===cur?'block':'none';});
+    document.getElementById('prog').style.width=Math.round((cur+1)/total*100)+'%';
+    document.getElementById('stepLabel').textContent='Paso '+(cur+1)+' de '+total+' · '+meta[cur];
+    back.style.display=cur===0?'none':'block';
+    next.textContent=cur===total-1?'Enviar mis respuestas':'Siguiente';
+    window.scrollTo(0,0);
+  }
+  back.onclick=function(){if(cur>0){cur--;render();}};
+
+  function buildPayload(){
+    var cols=['negocio','q1_nps','q2_ultima_entrega','q3_entregas_completas','q4_reparto_trato','q5_tiempo_revisar','q6_donde_deja','q7_envase','q8_faltantes','q9_recontar','q10_confianza_pedido','q11_conoce_asesor','q12_nombre_asesor','q13_asesor_visitas','q14_acude_a','q15_tiene_contacto','q16_problema','q16_detalle','q17_resolucion','q17_sentir','st1_uso','st2_saldo','st3_canje','st4_asesor_explico','q18_comentario','q19_telefono'];
+    var p={timestamp:new Date().toISOString(),asesor:asesor};
+    cols.forEach(function(c){var v=A[c];if(Array.isArray(v))v=v.join('; ');p[c]=v===undefined?'':v;});
+    return p;
+  }
+  function showThanks(){document.getElementById('card').innerHTML='<div style="padding:56px 28px;text-align:center"><div style="width:72px;height:72px;border-radius:999px;background:'+TINT+';display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i class="ti ti-check" style="font-size:38px;color:'+GREEN+'"></i></div><p style="font-weight:800;font-size:22px;letter-spacing:.02em;margin:0 0 8px;color:var(--fg)">¡Gracias por tu tiempo!</p><p style="font-weight:300;font-size:15px;color:rgba(0,0,0,.6);margin:0;line-height:1.5">Tus respuestas nos ayudan a atenderte mejor. Un asesor revisará lo que nos compartiste.</p></div>';}
+
+  next.onclick=function(){
+    if(cur===0){if(!(A['negocio']||'').trim()){negocioErr.style.display='block';negocioInput.style.borderColor='#c0392b';negocioInput.focus();window.scrollTo(0,0);return;}}
+    if(cur<total-1){cur++;render();return;}
+    var payload=buildPayload();
+    try{var k='encuesta_v2_respuestas';var prev=JSON.parse(localStorage.getItem(k)||'[]');prev.push(payload);localStorage.setItem(k,JSON.stringify(prev));}catch(e){}
+    if(CONFIG.endpoint&&CONFIG.endpoint.indexOf('http')===0){next.disabled=true;next.textContent='Enviando…';fetch(CONFIG.endpoint,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}).then(finish).catch(finish);}
+    else{finish();}
+    function finish(){document.getElementById('prog').style.width='100%';showThanks();}
+  };
+  render();
+})();
+</script>
+</body>
+</html>
